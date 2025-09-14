@@ -41,7 +41,7 @@ npm run setup
 
 1. A regular Chromium browser will open
 2. Sign in to Google
-3. Keep the browser open and press ENTER in this terminal when ready
+3. Keep the browser open and press ENTER in the terminal when ready
 4. The script will then save your authentication state
 
 ## Usage
@@ -77,10 +77,10 @@ images/
 Where:
 
 - `images/`: Root directory for all downloaded images
-- `collection_name`: The doodle collection (e.g., "animals", "nature")
-- `picture_class_name`: Sub-category within the collection
-- `picture_name`: Individual doodle name
-- `picture_name_#`: Different preset filters applied
+- `collection_name/`: The doodle collection (e.g., "animals", "nature")
+- `picture_class_name/`: Sub-category within the collection
+- `picture_name/`: Individual doodle name
+- `picture_name_#/`: Different preset filters applied
 
 ## Dependencies
 
@@ -91,4 +91,4 @@ Where:
 
 ## Disclaimer
 
-This tool is for personal use only. Ensure you comply with Google's Terms of Service when using this tool. The authors are not responsible for any misuse or violation of terms.
+This tool is for personal use only. Ensure you comply with Google's Terms of Service when using this tool. The author is not responsible for any misuse or violation of terms.
