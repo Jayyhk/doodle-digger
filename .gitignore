@@ -1,0 +1,11 @@
+# Node.js dependencies
+node_modules/
+
+# Authentication data (sensitive)
+persistent_context/
+
+# Downloaded images (large files)
+images/
+
+# Logs
+*.log

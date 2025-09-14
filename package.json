@@ -1,0 +1,19 @@
+{
+  "name": "doodle-digger",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/doodle-digger.js",
+  "scripts": {
+    "setup": "node src/setup.js",
+    "start": "node src/doodle-digger.js"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.55.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sharp": "^0.34.3"
+  }
+}
