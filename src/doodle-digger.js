@@ -189,6 +189,8 @@ async function downloadPreset(
   await nextButton.waitFor({ timeout: 5000 });
   await nextButton.click();
 
+  await page.waitForTimeout(250); // Wait for full picture to load
+
   // Find and download images
   const imageContainer = profileFrame.locator("div.VnojDb.aAuPs");
   await imageContainer.waitFor({ timeout: 10000 });
