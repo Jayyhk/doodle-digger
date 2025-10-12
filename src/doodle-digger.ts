@@ -46,13 +46,19 @@ function createFolderStructure(
 }
 
 // Helper function to wait for element and click
-async function waitAndClick(element: Locator, timeout: number = 5000): Promise<void> {
+async function waitAndClick(
+  element: Locator,
+  timeout: number = 5000
+): Promise<void> {
   await element.waitFor({ timeout });
   await element.click();
 }
 
 // Utility function to go back to preset selection
-async function goBackToPresetSelection(profileFrame: Frame, page: Page): Promise<void> {
+async function goBackToPresetSelection(
+  profileFrame: Frame,
+  page: Page
+): Promise<void> {
   const cancelButton = profileFrame.locator(
     'button[jsname="QApdW"]:has-text("Cancel")'
   );
@@ -62,7 +68,10 @@ async function goBackToPresetSelection(profileFrame: Frame, page: Page): Promise
 }
 
 // Utility function to go back from preset selection to picture selection
-async function goBackToPictureSelection(profileFrame: Frame, page: Page): Promise<void> {
+async function goBackToPictureSelection(
+  profileFrame: Frame,
+  page: Page
+): Promise<void> {
   const backButtons = profileFrame.locator(
     'button[jsname="fYZky"][aria-label="Back"]'
   );
@@ -72,7 +81,10 @@ async function goBackToPictureSelection(profileFrame: Frame, page: Page): Promis
 }
 
 // Utility function to go back from picture selection to picture class selection
-async function goBackToPictureClassSelection(profileFrame: Frame, page: Page): Promise<void> {
+async function goBackToPictureClassSelection(
+  profileFrame: Frame,
+  page: Page
+): Promise<void> {
   const backButtons = profileFrame.locator(
     'button[jsname="fYZky"][aria-label="Back"]'
   );
@@ -330,38 +342,38 @@ async function downloadPreset(
 
     // After clicking Change, the profile picture interface loads in iframe 2
     const newIframes = await page.locator("iframe").all();
-    profileFrame = await newIframes[1].contentFrame(); // iframe 2 (0-indexed)
+    profileFrame = await newIframes[2].contentFrame(); // third iframe (0-indexed)
 
     // Wait a bit longer for the interface to fully load
     await page.waitForTimeout(1000);
 
-    // Go directly to what we know works - find sections with picture collections
-    let sections = profileFrame!.locator("section.u4mwyd");
-    let sectionCountResult = await sections.count();
+    // Find sections with collections
+    let collections = profileFrame.locator("section.u4mwyd");
+    let collectionCountResult = await collections.count();
 
-    // Process ALL sections (collections)
+    // Process ALL collections
     for (
-      let sectionIndex = 0;
-      sectionIndex < sectionCountResult;
-      sectionIndex++
+      let collectionIndex = 0;
+      collectionIndex < collectionCountResult;
+      collectionIndex++
     ) {
-      const currentSection = sections.nth(sectionIndex);
+      const currentCollection = collections.nth(collectionIndex);
 
       // Get the collection name from the section
       const collectionName = await extractTextWithFallback(
-        currentSection.locator("h3").first(),
-        `unknown_collection_${sectionIndex + 1}`,
+        currentCollection.locator("h3").first(),
+        `unknown_collection_${collectionIndex + 1}`,
         30
       );
 
       console.log(
         `📘 Processing collection ${
-          sectionIndex + 1
-        } of ${sectionCountResult}: "${collectionName}"`
+          collectionIndex + 1
+        } of ${collectionCountResult}: "${collectionName}"`
       );
 
-      // Find picture classes within the current section (div.LWctvf containers)
-      const pictureClasses = currentSection.locator("div.LWctvf");
+      // Find picture classes within the current collection
+      const pictureClasses = currentCollection.locator("div.LWctvf");
       const pictureClassCount = await pictureClasses.count();
 
       // Process ALL picture classes in the collection
@@ -490,7 +502,7 @@ async function downloadPreset(
       );
     }
 
-    console.log(`🎊 Downloaded all ${sectionCountResult} collections!`);
+    console.log(`🎊 Downloaded all ${collectionCountResult} collections!`);
     console.log("🛑 Closing browser...");
     await context.close();
     process.exit(0);
