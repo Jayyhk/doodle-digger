@@ -2,10 +2,6 @@
 
 Doodle Digger is a tool to extract and download the default Google profile pictures (doodles) using automated browser navigation.
 
-## Description
-
-Doodle Digger uses Playwright to automate the process of browsing to your Google My Account profile picture selection interface. It systematically navigates through all available doodle collections, applies different preset filters, and downloads high-resolution images organized in a structured folder hierarchy.
-
 ## Features
 
 - Automated extraction of all Google doodle collections
@@ -14,12 +10,6 @@ Doodle Digger uses Playwright to automate the process of browsing to your Google
 - Organized folder structure by collection/class/picture
 - Composite image creation for multi-layer doodles
 - Persistent browser authentication for seamless operation
-
-## Prerequisites
-
-- Node.js (v14 or higher)
-- Google account
-- Internet connection
 
 ## Installation
 
@@ -82,15 +72,3 @@ Where:
 - `picture_class_name/`: Sub-category within the collection
 - `picture_name/`: Individual doodle name
 - `picture_name_#/`: Different preset filters applied
-
-## Dependencies
-
-- [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
-- [Playwright](https://playwright.dev/) - Browser automation
-- [playwright-extra](https://www.npmjs.com/package/playwright-extra) - Enhanced Playwright features
-- [puppeteer-extra-plugin-stealth](https://www.npmjs.com/package/puppeteer-extra-plugin-stealth) - Stealth plugin for browser automation
-- [Sharp](https://sharp.pixelplumbing.com/) - Image processing
-
-## Disclaimer
-
-This tool is for personal use only. Ensure you comply with Google's Terms of Service when using this tool. The author is not responsible for any misuse or violation of terms.
