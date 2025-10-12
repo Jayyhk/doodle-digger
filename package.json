@@ -2,10 +2,12 @@
   "name": "doodle-digger",
   "version": "1.0.0",
   "description": "",
-  "main": "src/doodle-digger.js",
+  "main": "dist/doodle-digger.js",
   "scripts": {
-    "setup": "node src/setup.js",
-    "start": "node src/doodle-digger.js"
+    "build": "tsc",
+    "setup": "npm run build && node dist/setup.js",
+    "start": "npm run build && node dist/doodle-digger.js",
+    "dev": "tsc --watch"
   },
   "keywords": [],
   "author": "",
@@ -15,5 +17,10 @@
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "sharp": "^0.34.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "@types/sharp": "^0.31.1",
+    "typescript": "^5.9.3"
   }
 }

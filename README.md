@@ -25,10 +25,11 @@ Doodle Digger uses Playwright to automate the process of browsing to your Google
 
 1. Clone or download this repository
 2. Navigate to the project directory
-3. Install dependencies:
+3. Install dependencies and build the TypeScript code:
 
 ```bash
 npm install
+npm run build
 ```
 
 ## Setup
@@ -84,6 +85,7 @@ Where:
 
 ## Dependencies
 
+- [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
 - [Playwright](https://playwright.dev/) - Browser automation
 - [playwright-extra](https://www.npmjs.com/package/playwright-extra) - Enhanced Playwright features
 - [puppeteer-extra-plugin-stealth](https://www.npmjs.com/package/puppeteer-extra-plugin-stealth) - Stealth plugin for browser automation

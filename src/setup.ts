@@ -1,11 +1,11 @@
-const { chromium } = require("playwright");
-const fs = require("fs");
-const path = require("path");
+import { chromium, BrowserContext } from "playwright";
+import * as fs from "fs";
+import * as path from "path";
 
 // The folder where your trusted browser profile will be stored
 const PERSISTENT_CONTEXT_DIR = "./persistent_context";
 
-(async () => {
+(async (): Promise<void> => {
   console.log("🔧 AUTHENTICATION SETUP");
 
   // Check if we already have a persistent context
@@ -25,7 +25,7 @@ const PERSISTENT_CONTEXT_DIR = "./persistent_context";
   console.log("4. The script will then save your authentication state");
 
   // Launch a regular browser without stealth plugins
-  const context = await chromium.launchPersistentContext(
+  const context: BrowserContext = await chromium.launchPersistentContext(
     PERSISTENT_CONTEXT_DIR,
     {
       headless: false,
@@ -57,7 +57,8 @@ const PERSISTENT_CONTEXT_DIR = "./persistent_context";
     });
 
     // Remove automation command line switch
-    if (window.navigator.userAgent.includes("HeadlessChrome")) {
+    const win = globalThis as any;
+    if (win.navigator?.userAgent?.includes("HeadlessChrome")) {
       Object.defineProperty(navigator, "userAgent", {
         get: () => navigator.userAgent.replace("HeadlessChrome", "Chrome"),
       });
@@ -71,7 +72,7 @@ const PERSISTENT_CONTEXT_DIR = "./persistent_context";
     });
 
     // Wait for user input
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       process.stdin.once("data", () => {
         resolve();
       });
@@ -82,7 +83,7 @@ const PERSISTENT_CONTEXT_DIR = "./persistent_context";
     await context.close();
     process.exit(0);
   } catch (error) {
-    console.error("❌ Setup failed:", error.message);
+    console.error("❌ Setup failed:", (error as Error).message);
     await context.close();
     process.exit(1);
   }

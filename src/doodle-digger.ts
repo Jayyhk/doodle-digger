@@ -1,14 +1,14 @@
-const { chromium } = require("playwright");
-const fs = require("fs");
-const path = require("path");
-const https = require("https");
-const sharp = require("sharp");
+import { chromium, BrowserContext, Page, Frame, Locator } from "playwright";
+import * as fs from "fs";
+import * as path from "path";
+import * as https from "https";
+import sharp from "sharp";
 
 const PERSISTENT_CONTEXT_DIR = "./persistent_context";
 const DOWNLOADS_DIR = "./images";
 
 // Utility function to clean text for folder/file names
-function cleanTextForPath(text, maxLength = 30) {
+function cleanTextForPath(text: string, maxLength: number = 30): string {
   if (!text || text.trim().length === 0) return "unknown";
 
   return text
@@ -19,13 +19,21 @@ function cleanTextForPath(text, maxLength = 30) {
 }
 
 // Utility function to extract text content from an element with fallback
-async function extractTextWithFallback(element, fallbackName, maxLength = 30) {
+async function extractTextWithFallback(
+  element: Locator,
+  fallbackName: string,
+  maxLength: number = 30
+): Promise<string> {
   const text = await element.textContent();
   return text?.trim() ? cleanTextForPath(text, maxLength) : fallbackName;
 }
 
 // Utility function to create folder structure
-function createFolderStructure(collectionName, pictureClassName, pictureName) {
+function createFolderStructure(
+  collectionName: string,
+  pictureClassName: string,
+  pictureName: string
+): string {
   const basePictureFolder = path.join(
     DOWNLOADS_DIR,
     collectionName,
@@ -38,13 +46,13 @@ function createFolderStructure(collectionName, pictureClassName, pictureName) {
 }
 
 // Helper function to wait for element and click
-async function waitAndClick(element, timeout = 5000) {
+async function waitAndClick(element: Locator, timeout: number = 5000): Promise<void> {
   await element.waitFor({ timeout });
   await element.click();
 }
 
 // Utility function to go back to preset selection
-async function goBackToPresetSelection(profileFrame, page) {
+async function goBackToPresetSelection(profileFrame: Frame, page: Page): Promise<void> {
   const cancelButton = profileFrame.locator(
     'button[jsname="QApdW"]:has-text("Cancel")'
   );
@@ -54,7 +62,7 @@ async function goBackToPresetSelection(profileFrame, page) {
 }
 
 // Utility function to go back from preset selection to picture selection
-async function goBackToPictureSelection(profileFrame, page) {
+async function goBackToPictureSelection(profileFrame: Frame, page: Page): Promise<void> {
   const backButtons = profileFrame.locator(
     'button[jsname="fYZky"][aria-label="Back"]'
   );
@@ -64,7 +72,7 @@ async function goBackToPictureSelection(profileFrame, page) {
 }
 
 // Utility function to go back from picture selection to picture class selection
-async function goBackToPictureClassSelection(profileFrame, page) {
+async function goBackToPictureClassSelection(profileFrame: Frame, page: Page): Promise<void> {
   const backButtons = profileFrame.locator(
     'button[jsname="fYZky"][aria-label="Back"]'
   );
@@ -74,7 +82,7 @@ async function goBackToPictureClassSelection(profileFrame, page) {
 }
 
 // Basic image download function
-const downloadImage = (url, filepath) =>
+const downloadImage = (url: string, filepath: string): Promise<void> =>
   new Promise((resolve, reject) => {
     const file = fs.createWriteStream(filepath);
     https
@@ -90,7 +98,11 @@ const downloadImage = (url, filepath) =>
   });
 
 // Helper function to download image to buffer
-async function downloadImageToBuffer(src, basePictureFolder, index) {
+async function downloadImageToBuffer(
+  src: string,
+  basePictureFolder: string,
+  index: number
+): Promise<Buffer> {
   const tempPath = path.join(basePictureFolder, `temp_${index}.jpg`);
   await downloadImage(src, tempPath);
   const imageBuffer = fs.readFileSync(tempPath);
@@ -99,11 +111,15 @@ async function downloadImageToBuffer(src, basePictureFolder, index) {
 }
 
 // CSS filter application using Playwright
-async function applyCSSFilterToImage(page, imageUrl, cssFilter) {
+async function applyCSSFilterToImage(
+  page: Page,
+  imageUrl: string,
+  cssFilter: string
+): Promise<Buffer> {
   // Create a filtered image using browser's CSS filter and canvas
-  const filteredImageData = await page.evaluate(
+  const filteredImageData: string = await page.evaluate(
     async ({ url, filter }) => {
-      return new Promise((resolve, reject) => {
+      return new Promise<string>((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
 
@@ -111,6 +127,11 @@ async function applyCSSFilterToImage(page, imageUrl, cssFilter) {
           // Create canvas and context
           const canvas = document.createElement("canvas");
           const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            reject(new Error("Could not get canvas context"));
+            return;
+          }
 
           // Set canvas size to match image
           canvas.width = img.naturalWidth;
@@ -146,10 +167,10 @@ async function applyCSSFilterToImage(page, imageUrl, cssFilter) {
 
 // Create composite image from processed image buffers
 async function createCompositeFromBuffers(
-  outputFolder,
-  presetNumber,
-  imageBuffers
-) {
+  outputFolder: string,
+  presetNumber: number,
+  imageBuffers: Buffer[]
+): Promise<void> {
   const pictureName = path.basename(outputFolder);
   const finalPath = path.join(
     outputFolder,
@@ -169,7 +190,7 @@ async function createCompositeFromBuffers(
     input: buffer,
     top: 0,
     left: 0,
-    blend: "over",
+    blend: "over" as const,
   }));
 
   await baseImage.composite(overlays).jpeg({ quality: 100 }).toFile(finalPath);
@@ -177,11 +198,11 @@ async function createCompositeFromBuffers(
 
 // Main function to download preset images
 async function downloadPreset(
-  profileFrame,
-  page,
-  basePictureFolder,
-  presetNumber
-) {
+  profileFrame: Frame,
+  page: Page,
+  basePictureFolder: string,
+  presetNumber: number
+): Promise<void> {
   // Click "Next" button to view full picture with preset filters
   const nextButton = profileFrame.locator(
     'button:has(span[jsname="V67aGc"]:has-text("Next")), button[jsname="yTKzd"]:has-text("Next")'
@@ -198,7 +219,7 @@ async function downloadPreset(
   const imageCount = await images.count();
 
   // Download and process each image, collecting them for compositing
-  const processedImages = [];
+  const processedImages: Buffer[] = [];
   for (let i = 0; i < imageCount; i++) {
     const image = images.nth(i);
     let src = await image.getAttribute("src");
@@ -228,7 +249,7 @@ async function downloadPreset(
   );
 }
 
-(async () => {
+(async (): Promise<void> => {
   console.log("⛏️  Doodle Digger - A Google Profile Picture Extractor");
   console.log("=====================================================");
 
@@ -242,7 +263,7 @@ async function downloadPreset(
 
   // Launch browser with saved authentication
   console.log("🚀 Launching browser...");
-  const context = await chromium.launchPersistentContext(
+  const context: BrowserContext = await chromium.launchPersistentContext(
     PERSISTENT_CONTEXT_DIR,
     {
       headless: false, // Set to true for headless operation
@@ -273,7 +294,7 @@ async function downloadPreset(
     // Find the profile picture iframe
     const iframes = await page.locator("iframe").all();
 
-    let profileFrame = null;
+    let profileFrame: any = null;
     for (let i = 0; i < iframes.length; i++) {
       try {
         const frame = await iframes[i].contentFrame();
@@ -300,7 +321,7 @@ async function downloadPreset(
 
     // Click the Change button
     console.log("🔄 Clicking on Change button...");
-    const changeButton = profileFrame.locator('button[jsname="oKomv"]');
+    const changeButton = profileFrame!.locator('button[jsname="oKomv"]');
     await changeButton.waitFor({ timeout: 10000 });
     await changeButton.click();
 
@@ -315,7 +336,7 @@ async function downloadPreset(
     await page.waitForTimeout(1000);
 
     // Go directly to what we know works - find sections with picture collections
-    let sections = profileFrame.locator("section.u4mwyd");
+    let sections = profileFrame!.locator("section.u4mwyd");
     let sectionCountResult = await sections.count();
 
     // Process ALL sections (collections)
@@ -367,7 +388,7 @@ async function downloadPreset(
         await page.waitForTimeout(1000);
 
         // Find individual pictures in the iframe
-        const pictures = profileFrame.locator('div[role="listitem"]');
+        const pictures = profileFrame!.locator('div[role="listitem"]');
         const pictureCount = await pictures.count();
 
         // Process ALL pictures in the picture class
@@ -387,7 +408,7 @@ async function downloadPreset(
 
           // Extract the picture name from the h1.i2Djkc element
           const pictureName = await extractTextWithFallback(
-            profileFrame.locator("h1.i2Djkc").nth(2), // It is the third h1.i2Djkc element
+            profileFrame!.locator("h1.i2Djkc").nth(2), // It is the third h1.i2Djkc element
             `unknown_picture_${pictureIndex + 1}`,
             50
           );
@@ -399,7 +420,7 @@ async function downloadPreset(
           );
 
           // Find preset radio buttons specifically under the "Presets" heading
-          const presetsHeading = profileFrame.locator(
+          const presetsHeading = profileFrame!.locator(
             'div[role="heading"]:has-text("Presets")'
           );
           await presetsHeading.waitFor({ timeout: 5000 });
@@ -438,7 +459,7 @@ async function downloadPreset(
 
             // Download images for this preset
             await downloadPreset(
-              profileFrame,
+              profileFrame!,
               page,
               basePictureFolder,
               presetIndex + 1
@@ -447,13 +468,13 @@ async function downloadPreset(
             console.log(`🎉 Downloaded preset ${presetIndex + 1}!`);
 
             // Always go back to preset selection after downloading
-            await goBackToPresetSelection(profileFrame, page);
+            await goBackToPresetSelection(profileFrame!, page);
           }
 
           console.log(`📁 All images saved to: ${basePictureFolder}`);
 
           // Always go back to picture selection (needed for navigation to next picture or picture class)
-          await goBackToPictureSelection(profileFrame, page);
+          await goBackToPictureSelection(profileFrame!, page);
         }
 
         console.log(
@@ -461,7 +482,7 @@ async function downloadPreset(
         );
 
         // Always go back to picture class selection (for next picture class or to be in correct state)
-        await goBackToPictureClassSelection(profileFrame, page);
+        await goBackToPictureClassSelection(profileFrame!, page);
       }
 
       console.log(
@@ -474,7 +495,7 @@ async function downloadPreset(
     await context.close();
     process.exit(0);
   } catch (error) {
-    console.error("❌ Error during extraction:", error.message);
+    console.error("❌ Error during extraction:", (error as Error).message);
     console.log("🛑 Closing browser...");
     await context.close();
     process.exit(1);
