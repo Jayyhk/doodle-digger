@@ -60,25 +60,30 @@ async function goBackToPresetSelection(profileFrame: Frame): Promise<void> {
   await cancelButton.waitFor({ state: "hidden" });
 }
 
-// Click the visible Back button (used to step up one level in the gallery).
-// The sleep is the only signal that reliably works for this iframe. Five
-// event-driven approaches were tried and all failed for SPA-specific reasons:
-//   1. `waitForURL` — defaults to waitUntil:"load", which never re-fires on pushState.
-//   2. `waitForEvent("framenavigated")` — not emitted for pushState in this iframe.
-//   3. `waitForFunction(h1 changes)` — first h1 stays the same across panels
-//      (e.g. picture-detail and picture-list both show the picture-class title).
-//   4. `waitForElementState("hidden")` on the clicked Back button — Google reuses
-//      the same DOM node across panels, so it never detaches/hides.
-//   5. `waitForFunction(location.href !== before)` — iframe's location.href
-//      doesn't change observably from the JS context across these transitions.
-// Empirically, 800ms is long enough for the panel swap to complete.
-async function clickBack(profileFrame: Frame): Promise<void> {
+async function clickBackButton(profileFrame: Frame): Promise<void> {
   const backButton = profileFrame
     .locator('button[jsname="fYZky"][aria-label="Back"]:visible')
     .first();
   await backButton.waitFor({ state: "visible" });
   await backButton.click({ force: true });
-  await profileFrame.waitForTimeout(800);
+}
+
+// Back from picture-detail to picture-list. The "Presets" heading only exists
+// on the picture-detail panel, so its detachment proves the swap completed.
+async function clickBackToPictureList(profileFrame: Frame): Promise<void> {
+  await clickBackButton(profileFrame);
+  await profileFrame
+    .locator('div[role="heading"]:has-text("Presets")')
+    .first()
+    .waitFor({ state: "detached" });
+}
+
+// Back from picture-list to the gallery. The gallery has many `section.u4mwyd`
+// nodes; the picture-list panel has none — so waiting for the second one is a
+// reliable "we're back at the gallery" signal.
+async function clickBackToGallery(profileFrame: Frame): Promise<void> {
+  await clickBackButton(profileFrame);
+  await profileFrame.locator("section.u4mwyd").nth(1).waitFor();
 }
 
 // Basic image download function
@@ -431,13 +436,13 @@ async function downloadPreset(
           }
 
           console.log(`📁 All images saved to: ${basePictureFolder}`);
-          await clickBack(profileFrame); // back to picture list
+          await clickBackToPictureList(profileFrame);
         }
 
         console.log(
           `🎊 Downloaded all ${pictureCount} pictures in "${pictureClassName}"!`
         );
-        await clickBack(profileFrame); // back to picture-class list
+        await clickBackToGallery(profileFrame);
       }
 
       console.log(
