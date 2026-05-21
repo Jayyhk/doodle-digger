@@ -15,11 +15,11 @@ Doodle Digger is a tool to extract and download the default Google profile pictu
 
 1. Clone or download this repository
 2. Navigate to the project directory
-3. Install dependencies and build the TypeScript code:
+3. Install dependencies and the Chromium browser used by Playwright:
 
 ```bash
 npm install
-npm run build
+npx playwright install chromium
 ```
 
 ## Setup
