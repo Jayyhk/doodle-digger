@@ -45,52 +45,40 @@ function createFolderStructure(
   return basePictureFolder;
 }
 
-// Helper function to wait for element and click
-async function waitAndClick(
-  element: Locator,
-  timeout: number = 5000
-): Promise<void> {
-  await element.waitFor({ timeout });
+async function waitAndClick(element: Locator): Promise<void> {
+  await element.waitFor();
   await element.click();
 }
 
-// Utility function to go back to preset selection
-async function goBackToPresetSelection(
-  profileFrame: Frame,
-  page: Page
-): Promise<void> {
+// Cancel the preset preview to return to the preset list
+async function goBackToPresetSelection(profileFrame: Frame): Promise<void> {
   const cancelButton = profileFrame.locator(
     'button[jsname="QApdW"]:has-text("Cancel")'
   );
-  await cancelButton.waitFor({ timeout: 3000 });
+  await cancelButton.waitFor();
   await cancelButton.click({ force: true });
-  await page.waitForTimeout(500);
+  await cancelButton.waitFor({ state: "hidden" });
 }
 
-// Utility function to go back from preset selection to picture selection
-async function goBackToPictureSelection(
-  profileFrame: Frame,
-  page: Page
-): Promise<void> {
-  const backButtons = profileFrame.locator(
-    'button[jsname="fYZky"][aria-label="Back"]'
-  );
-  const correctBackButton = backButtons.nth(2); // It is the third back button
-  await correctBackButton.click({ force: true });
-  await page.waitForTimeout(1000); // Wait for navigation
-}
-
-// Utility function to go back from picture selection to picture class selection
-async function goBackToPictureClassSelection(
-  profileFrame: Frame,
-  page: Page
-): Promise<void> {
-  const backButtons = profileFrame.locator(
-    'button[jsname="fYZky"][aria-label="Back"]'
-  );
-  const correctBackButton = backButtons.nth(1); // It is the second back button
-  await correctBackButton.click({ force: true });
-  await page.waitForTimeout(1000); // Wait for navigation
+// Click the visible Back button (used to step up one level in the gallery).
+// The sleep is the only signal that reliably works for this iframe. Five
+// event-driven approaches were tried and all failed for SPA-specific reasons:
+//   1. `waitForURL` — defaults to waitUntil:"load", which never re-fires on pushState.
+//   2. `waitForEvent("framenavigated")` — not emitted for pushState in this iframe.
+//   3. `waitForFunction(h1 changes)` — first h1 stays the same across panels
+//      (e.g. picture-detail and picture-list both show the picture-class title).
+//   4. `waitForElementState("hidden")` on the clicked Back button — Google reuses
+//      the same DOM node across panels, so it never detaches/hides.
+//   5. `waitForFunction(location.href !== before)` — iframe's location.href
+//      doesn't change observably from the JS context across these transitions.
+// Empirically, 800ms is long enough for the panel swap to complete.
+async function clickBack(profileFrame: Frame): Promise<void> {
+  const backButton = profileFrame
+    .locator('button[jsname="fYZky"][aria-label="Back"]:visible')
+    .first();
+  await backButton.waitFor({ state: "visible" });
+  await backButton.click({ force: true });
+  await profileFrame.waitForTimeout(800);
 }
 
 // Basic image download function
@@ -219,14 +207,12 @@ async function downloadPreset(
   const nextButton = profileFrame.locator(
     'button:has(span[jsname="V67aGc"]:has-text("Next")), button[jsname="yTKzd"]:has-text("Next")'
   );
-  await nextButton.waitFor({ timeout: 5000 });
+  await nextButton.waitFor();
   await nextButton.click();
 
-  await page.waitForTimeout(250); // Wait for full picture to load
-
-  // Find and download images
+  // imageContainer.waitFor below is the real signal that the preview is ready
   const imageContainer = profileFrame.locator("div.VnojDb.aAuPs");
-  await imageContainer.waitFor({ timeout: 10000 });
+  await imageContainer.waitFor();
   const images = imageContainer.locator("img.x1Lcpf");
   const imageCount = await images.count();
 
@@ -290,93 +276,65 @@ async function downloadPreset(
 
   try {
     await page.goto("https://myaccount.google.com/personal-info", {
-      waitUntil: "networkidle",
-      timeout: 10000,
+      waitUntil: "domcontentloaded",
     });
+    await page.waitForLoadState("load").catch(() => {});
 
     // Wait for and click on the profile picture change button
     console.log("📸 Clicking on profile picture...");
     const profilePictureButton = page.locator(
       'div[aria-label="Change profile photo"]'
     );
-    await profilePictureButton.waitFor({ timeout: 10000 });
+    await profilePictureButton.waitFor();
     await profilePictureButton.click();
-    await page.waitForTimeout(2000);
 
-    // Find the profile picture iframe
-    const iframes = await page.locator("iframe").all();
+    // Locate the profile-picture iframe — either already attached, or wait for it
+    const profileFrame: Frame =
+      page.frames().find((f) => f.url().includes("/profile-picture")) ??
+      (await page.waitForEvent("framenavigated", {
+        predicate: (f) => f.url().includes("/profile-picture"),
+      }));
 
-    let profileFrame: any = null;
-    for (let i = 0; i < iframes.length; i++) {
-      try {
-        const frame = await iframes[i].contentFrame();
-        if (frame) {
-          const dialogCount = await frame.locator('div[role="dialog"]').count();
-          const changeButtonCount = await frame
-            .locator('button[jsname="oKomv"]')
-            .count();
-          const sectionsCount = await frame.locator("section").count();
+    // Click "Browse Illustrations" to enter the doodle gallery
+    // (`:visible` skips the transition-layer duplicates that briefly exist during the modal animation)
+    console.log("🎨 Clicking on Browse Illustrations...");
+    const browseButton = profileFrame
+      .locator('button[jsname="kQAOUc"]:visible')
+      .first();
+    await browseButton.waitFor({ state: "visible" });
+    await browseButton.click();
 
-          if (dialogCount > 0 || changeButtonCount > 0 || sectionsCount > 0) {
-            profileFrame = frame;
-            break;
-          }
-        }
-      } catch {
-        // Continue to next iframe
-      }
-    }
+    // Gallery loads within the same iframe — wait on the collections directly
+    await profileFrame.locator("section.u4mwyd").first().waitFor();
 
-    if (!profileFrame) {
-      profileFrame = await iframes[iframes.length - 1].contentFrame();
-    }
+    // Collect collection names upfront. Google reshuffles section order after each visit
+    // (the just-visited collection bumps to position 1), so we iterate by name, not index.
+    const collectionNames: string[] = (
+      await profileFrame.evaluate(() =>
+        Array.from(document.querySelectorAll("section.u4mwyd")).map(
+          (s) => (s.querySelector("h3")?.textContent || "").trim()
+        ).filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b)); // stable alphabetical order across runs
+    console.log(`📚 Found ${collectionNames.length} collections: ${collectionNames.join(", ")}`);
 
-    // Click the Change button
-    console.log("🔄 Clicking on Change button...");
-    const changeButton = profileFrame!.locator('button[jsname="oKomv"]');
-    await changeButton.waitFor({ timeout: 10000 });
-    await changeButton.click();
-
-    // Wait for the picture selection interface to load
-    await page.waitForTimeout(1000);
-
-    // After clicking Change, the profile picture interface loads in iframe 2
-    const newIframes = await page.locator("iframe").all();
-    profileFrame = await newIframes[2].contentFrame(); // third iframe (0-indexed)
-
-    // Wait a bit longer for the interface to fully load
-    await page.waitForTimeout(1000);
-
-    // Find sections with collections
-    let collections = profileFrame.locator("section.u4mwyd");
-    let collectionCountResult = await collections.count();
-
-    // Process ALL collections
-    for (
-      let collectionIndex = 0;
-      collectionIndex < collectionCountResult;
-      collectionIndex++
-    ) {
-      const currentCollection = collections.nth(collectionIndex);
-
-      // Get the collection name from the section
-      const collectionName = await extractTextWithFallback(
-        currentCollection.locator("h3").first(),
-        `unknown_collection_${collectionIndex + 1}`,
-        30
-      );
+    for (let collectionIndex = 0; collectionIndex < collectionNames.length; collectionIndex++) {
+      const rawCollectionName = collectionNames[collectionIndex];
+      const collectionName = cleanTextForPath(rawCollectionName, 30);
 
       console.log(
-        `📘 Processing collection ${
-          collectionIndex + 1
-        } of ${collectionCountResult}: "${collectionName}"`
+        `📘 Processing collection ${collectionIndex + 1} of ${collectionNames.length}: "${collectionName}"`
       );
 
-      // Find picture classes within the current collection
+      // Find the section by its heading text (robust to reshuffling)
+      const currentCollection = profileFrame
+        .locator(`section.u4mwyd:has(h3:text-is("${rawCollectionName}"))`)
+        .first();
+      await currentCollection.scrollIntoViewIfNeeded();
+
       const pictureClasses = currentCollection.locator("div.LWctvf");
       const pictureClassCount = await pictureClasses.count();
 
-      // Process ALL picture classes in the collection
       for (let classIndex = 0; classIndex < pictureClassCount; classIndex++) {
         const currentPictureClass = pictureClasses.nth(classIndex);
 
@@ -396,31 +354,25 @@ async function downloadPreset(
         // Click on the button within the picture class
         await waitAndClick(currentPictureClass.locator("button.WPmjde.Iq3YXe"));
 
-        // Wait for pictures to load
-        await page.waitForTimeout(1000);
-
-        // Find individual pictures in the iframe
-        const pictures = profileFrame!.locator('div[role="listitem"]');
+        // Wait for the picture list to render
+        const pictures = profileFrame.locator('div[role="listitem"]');
+        await pictures.first().waitFor();
         const pictureCount = await pictures.count();
 
-        // Process ALL pictures in the picture class
-        for (
-          let pictureIndex = 0;
-          pictureIndex < pictureCount;
-          pictureIndex++
-        ) {
+        for (let pictureIndex = 0; pictureIndex < pictureCount; pictureIndex++) {
           // Get the current picture
           const currentPicture = pictures.nth(pictureIndex);
 
-          // Click on the picture button
+          // Click on the picture button and wait for the detail view's Presets heading
           await waitAndClick(currentPicture.locator("button.EbkQ6c.Iq3YXe"));
+          const presetsHeading = profileFrame.locator(
+            'div[role="heading"]:has-text("Presets")'
+          );
+          await presetsHeading.waitFor();
 
-          // Wait for the picture preview to load
-          await page.waitForTimeout(1000);
-
-          // Extract the picture name from the h1.i2Djkc element
+          // Picture name is the last h1.i2Djkc on the detail view
           const pictureName = await extractTextWithFallback(
-            profileFrame!.locator("h1.i2Djkc").nth(2), // It is the third h1.i2Djkc element
+            profileFrame.locator("h1.i2Djkc").last(),
             `unknown_picture_${pictureIndex + 1}`,
             50
           );
@@ -431,13 +383,7 @@ async function downloadPreset(
             } of ${pictureCount}: "${pictureName}"`
           );
 
-          // Find preset radio buttons specifically under the "Presets" heading
-          const presetsHeading = profileFrame!.locator(
-            'div[role="heading"]:has-text("Presets")'
-          );
-          await presetsHeading.waitFor({ timeout: 5000 });
-
-          // Then find the next sibling div that contains the preset labels
+          // Find the next sibling div containing the preset labels
           const presetsContainer = presetsHeading
             .locator('xpath=following-sibling::div[contains(@class, "l1xIwe")]')
             .first();
@@ -455,7 +401,6 @@ async function downloadPreset(
             pictureName
           );
 
-          // Download images for each preset
           for (let presetIndex = 0; presetIndex < presetCount; presetIndex++) {
             console.log(
               `🎨 Processing preset ${
@@ -463,38 +408,36 @@ async function downloadPreset(
               } of ${presetCount} for ${pictureName}...`
             );
 
-            // Select preset
+            // Select preset via programmatic JS click. A real browser click is routed
+            // through the `.ZmdBVc` transition overlay, which hijacks pointer events and
+            // can close the modal; a JS-dispatched click goes straight to the radio.
             const presetRadio = presetRadios.nth(presetIndex);
-            await presetRadio.waitFor({ timeout: 5000 });
-            await presetRadio.click({ force: true });
-            await presetRadio.locator("xpath=..").click(); // Click parent label
+            await presetRadio.waitFor();
+            await presetRadio.evaluate((el) => {
+              const input = el as HTMLInputElement;
+              input.click();
+              input.parentElement?.click();
+            });
 
-            // Download images for this preset
             await downloadPreset(
-              profileFrame!,
+              profileFrame,
               page,
               basePictureFolder,
               presetIndex + 1
             );
-
             console.log(`🎉 Downloaded preset ${presetIndex + 1}!`);
 
-            // Always go back to preset selection after downloading
-            await goBackToPresetSelection(profileFrame!, page);
+            await goBackToPresetSelection(profileFrame);
           }
 
           console.log(`📁 All images saved to: ${basePictureFolder}`);
-
-          // Always go back to picture selection (needed for navigation to next picture or picture class)
-          await goBackToPictureSelection(profileFrame!, page);
+          await clickBack(profileFrame); // back to picture list
         }
 
         console.log(
           `🎊 Downloaded all ${pictureCount} pictures in "${pictureClassName}"!`
         );
-
-        // Always go back to picture class selection (for next picture class or to be in correct state)
-        await goBackToPictureClassSelection(profileFrame!, page);
+        await clickBack(profileFrame); // back to picture-class list
       }
 
       console.log(
@@ -502,7 +445,7 @@ async function downloadPreset(
       );
     }
 
-    console.log(`🎊 Downloaded all ${collectionCountResult} collections!`);
+    console.log(`🎊 Downloaded all ${collectionNames.length} collections!`);
     console.log("🛑 Closing browser...");
     await context.close();
     process.exit(0);
